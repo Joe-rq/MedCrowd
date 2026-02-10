@@ -36,6 +36,14 @@ yarn-error.log*
 # vercel
 .vercel
 
+# other AI editor skills (only keep .agents/ and .claude/)
+.agent/
+.cursor/
+.kiro/
+.qwen/
+.trae/
+.windsurf/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
