@@ -8,7 +8,10 @@ import * as path from "path";
 // ============================================================
 
 // 环境开关：本地开发可回退到 JSON 文件模式
-const USE_JSON_MODE = process.env.DB_MODE === "json" || !process.env.KV_REST_API_URL;
+// 支持新版 Upstash Redis (UPSTASH_REDIS_REST_URL) 和旧版 Vercel KV (KV_REST_API_URL)
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+const USE_JSON_MODE = process.env.DB_MODE === "json" || !REDIS_URL;
 
 // JSON 文件路径（仅本地开发使用）
 const DATA_DIR = path.join(process.cwd(), "data");
