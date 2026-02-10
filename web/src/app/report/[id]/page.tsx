@@ -14,7 +14,7 @@ export default async function ReportPage({
   }
 
   const { id } = await params;
-  const consultation = getConsultation(id);
+  const consultation = await getConsultation(id);
 
   if (!consultation || consultation.askerId !== session.userId) {
     return (
@@ -27,7 +27,7 @@ export default async function ReportPage({
     );
   }
 
-  const responses = getAgentResponses(id);
+  const responses = await getAgentResponses(id);
 
   return (
     <ReportView

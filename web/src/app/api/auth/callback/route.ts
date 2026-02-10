@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     const userInfo = await getUserInfo(tokens.accessToken);
 
-    const user = upsertUser({
+    const user = await upsertUser({
       secondmeId: userInfo.userId,
       name: userInfo.name || "匿名用户",
       avatar: userInfo.avatar || "",

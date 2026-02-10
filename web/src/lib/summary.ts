@@ -12,12 +12,14 @@ export interface ReportSummary {
   agentResponses: { agentId: string; summary: string; keyPoints: string[] }[];
   noExperienceCount: number;
   totalAgentsQueried: number;
+  reactionHighlights?: { agentId: string; reaction: string; references: string[] }[];
 }
 
 export function buildSummary(
   responses: AgentResponseRecord[],
   totalQueried: number,
-  noExperienceCount: number
+  noExperienceCount: number,
+  reactionResponses?: AgentResponseRecord[]
 ): ReportSummary {
   const substantiveResponses = responses.filter(
     (r) => r.isValid && !r.invalidReason?.includes("无相关经历")
@@ -55,17 +57,81 @@ export function buildSummary(
       totalAgents: substantiveResponses.length,
     }));
 
+  const costRange = extractCostRange(responses);
+
+  const reactionHighlights = reactionResponses
+    ?.filter((r) => r.isValid && r.rawResponse.length > 10)
+    .map((r) => ({
+      agentId: `Agent ${r.responderId.slice(0, 8)}`,
+      reaction: r.rawResponse.slice(0, 150),
+      references: extractKeyPoints(r.rawResponse).slice(0, 2),
+    }));
+
   return {
     consensus,
     divergence: [],
     preparation: extractPreparationItems(responses),
     needDoctorConfirm: ["具体诊断和治疗方案请咨询专业医生"],
+    costRange,
     riskWarning:
       "以上信息来自其他用户 AI 的经验交流，不构成任何形式的医疗建议、诊断或治疗方案。健康问题请务必咨询专业医疗机构和医生。",
     agentResponses: agentResponsesSummary,
     noExperienceCount,
     totalAgentsQueried: totalQueried,
+    reactionHighlights,
   };
+}
+
+// Extract cost range from responses (e.g., "几百块", "1000-2000元")
+function extractCostRange(responses: AgentResponseRecord[]): { min: number; max: number; note: string } | undefined {
+  const costPatterns = [
+    /(\d+)\s*-\s*(\d+)\s*元/,
+    /(\d+)\s*元/,
+    /大约\s*(\d+)\s*元/,
+    /几千?块?/,
+    /几百?块?/,
+  ];
+
+  const costs: number[] = [];
+
+  for (const r of responses) {
+    if (!r.isValid) continue;
+    const text = r.rawResponse;
+
+    for (const pattern of costPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        if (match[2]) {
+          costs.push(parseInt(match[1]));
+          costs.push(parseInt(match[2]));
+        } else if (match[1]) {
+          costs.push(parseInt(match[1]));
+        }
+        break;
+      }
+    }
+  }
+
+  if (costs.length === 0) return undefined;
+
+  const min = Math.min(...costs);
+  const max = Math.max(...costs);
+
+  // Cap unrealistic values (health consultation typically < 100000)
+  if (max > 100000) return undefined;
+
+  let note = "";
+  if (min < 100 && max < 100) {
+    note = "常规检查费用";
+  } else if (max < 1000) {
+    note = "门诊/检查费用";
+  } else if (max < 10000) {
+    note = "治疗费用范围";
+  } else {
+    note = "综合费用参考";
+  }
+
+  return { min, max, note };
 }
 
 // Simple key point extraction from response text

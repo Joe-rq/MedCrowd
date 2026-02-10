@@ -7,7 +7,7 @@ export default async function SharePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const consultation = getConsultation(id);
+  const consultation = await getConsultation(id);
 
   if (!consultation || !consultation.summary) {
     return (

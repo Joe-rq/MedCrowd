@@ -12,7 +12,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  const consultation = getConsultation(id);
+  const consultation = await getConsultation(id);
 
   if (!consultation) {
     return NextResponse.json({ error: "咨询不存在" }, { status: 404 });
@@ -21,7 +21,7 @@ export async function GET(
   // Only the asker can view full details
   const isOwner = consultation.askerId === session.userId;
 
-  const responses = getAgentResponses(id);
+  const responses = await getAgentResponses(id);
 
   return NextResponse.json({
     consultation: {
