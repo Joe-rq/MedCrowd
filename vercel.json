@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "regions": ["hkg1"],
+  "version": 2
+}

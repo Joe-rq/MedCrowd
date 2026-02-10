@@ -91,12 +91,18 @@ SECONDME_CLIENT_ID=your_client_id
 SECONDME_CLIENT_SECRET=your_client_secret
 SECONDME_REDIRECT_URI=http://localhost:3000/api/auth/callback
 
-# Session 密钥（生成随机字符串）
-SESSION_SECRET=your_random_secret_key
+# SecondMe API 配置
+SECONDME_API_BASE_URL=https://app.mindos.com/gate/lab
+SECONDME_OAUTH_URL=https://go.second.me/oauth/
 
-# LLM API 配置
-LLM_API_KEY=your_llm_api_key
-LLM_BASE_URL=https://api.openai.com/v1
+# Session 密钥（至少 32 字符，生成: openssl rand -base64 32）
+SESSION_SECRET=your_random_secret_key_at_least_32_chars
+
+# OAuth State 校验模式 (true=严格, false=宽松/WebView 场景)
+OAUTH_STATE_STRICT=true
+
+# 应用基础 URL
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
 ```
 
 ### 3. 启动开发服务器
@@ -122,9 +128,11 @@ npm run build
 | `SECONDME_CLIENT_ID` | ✅ | SecondMe OAuth 客户端 ID |
 | `SECONDME_CLIENT_SECRET` | ✅ | SecondMe OAuth 客户端密钥 |
 | `SECONDME_REDIRECT_URI` | ✅ | OAuth 回调地址 |
-| `SESSION_SECRET` | ✅ | Session 加密密钥（随机字符串） |
-| `LLM_API_KEY` | ✅ | LLM 服务商 API Key |
-| `LLM_BASE_URL` | ❌ | LLM API 基础地址（默认 OpenAI） |
+| `SECONDME_API_BASE_URL` | ✅ | SecondMe API 基础地址 |
+| `SECONDME_OAUTH_URL` | ✅ | SecondMe OAuth 授权地址 |
+| `SESSION_SECRET` | ✅ | Session 加密密钥（≥32 字符） |
+| `OAUTH_STATE_STRICT` | ❌ | OAuth state 校验模式（默认 true） |
+| `NEXT_PUBLIC_BASE_URL` | ❌ | 应用公开 URL（默认 localhost:3000） |
 
 ---
 
@@ -147,16 +155,19 @@ vercel --prod
 
 1. `SECONDME_CLIENT_ID`
 2. `SECONDME_CLIENT_SECRET`
-3. `SECONDME_REDIRECT_URI` (生产环境地址，如 `https://your-domain.com/api/auth/callback`)
-4. `SESSION_SECRET`
-5. `LLM_API_KEY`
+3. `SECONDME_REDIRECT_URI` (生产环境地址，如 `https://your-domain.vercel.app/api/auth/callback`)
+4. `SECONDME_API_BASE_URL`
+5. `SECONDME_OAUTH_URL`
+6. `SESSION_SECRET`
+7. `NEXT_PUBLIC_BASE_URL`
 
 ### SecondMe OAuth 配置
 
 在 SecondMe 开发者后台添加回调地址：
 ```
-https://your-domain.com/api/auth/callback
+https://your-domain.vercel.app/api/auth/callback
 ```
+注意：同时保留 `http://localhost:3000/api/auth/callback` 以确保本地开发不受影响。
 
 ---
 
