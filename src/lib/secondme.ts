@@ -1,5 +1,18 @@
-const SECONDME_API_BASE = "https://app.mindos.com/gate/lab";
-const OAUTH_BASE = "https://go.second.me/oauth/";
+export function getRequiredEnvVar(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required. Set it in .env.local`);
+  }
+  return value;
+}
+
+function getSecondMeApiBase(): string {
+  return getRequiredEnvVar("SECONDME_API_BASE_URL");
+}
+
+function getSecondMeOAuthUrl(): string {
+  return getRequiredEnvVar("SECONDME_OAUTH_URL");
+}
 
 export interface SecondMeTokens {
   accessToken: string;
@@ -24,7 +37,7 @@ export function getAuthorizationUrl(state: string): string {
     response_type: "code",
     state,
   });
-  return `${OAUTH_BASE}?${params.toString()}`;
+  return `${getSecondMeOAuthUrl()}?${params.toString()}`;
 }
 
 // Exchange authorization code for tokens
@@ -39,7 +52,7 @@ export async function exchangeCodeForTokens(
     client_secret: process.env.SECONDME_CLIENT_SECRET!,
   });
 
-  const res = await fetch(`${SECONDME_API_BASE}/api/oauth/token/code`, {
+  const res = await fetch(`${getSecondMeApiBase()}/api/oauth/token/code`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
@@ -64,7 +77,7 @@ export async function refreshAccessToken(
     client_secret: process.env.SECONDME_CLIENT_SECRET!,
   });
 
-  const res = await fetch(`${SECONDME_API_BASE}/api/oauth/token/refresh`, {
+  const res = await fetch(`${getSecondMeApiBase()}/api/oauth/token/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
@@ -82,7 +95,7 @@ export async function refreshAccessToken(
 export async function getUserInfo(
   accessToken: string
 ): Promise<SecondMeUser> {
-  const res = await fetch(`${SECONDME_API_BASE}/api/secondme/user/info`, {
+  const res = await fetch(`${getSecondMeApiBase()}/api/secondme/user/info`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
@@ -109,7 +122,7 @@ export async function chatWithAgent(
     body.sessionId = sessionId;
   }
 
-  const res = await fetch(`${SECONDME_API_BASE}/api/secondme/chat/stream`, {
+  const res = await fetch(`${getSecondMeApiBase()}/api/secondme/chat/stream`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,

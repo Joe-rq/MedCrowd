@@ -14,6 +14,8 @@ import {
   type AgentResponseRecord,
 } from "./db";
 import { validateResponse, isDuplicate } from "./validator";
+import { buildSummary, type ReportSummary } from "./summary";
+import { triageHealthQuestion, getAdjustedSystemPrompt, type TriageResult } from "./act";
 
 const SYSTEM_PROMPT = `你是一个真实用户的 AI 代理。现在有人通过「MedCrowd（众医议）」平台向你咨询健康相关的经验。
 
@@ -34,24 +36,16 @@ export interface ConsultationResult {
   status: "DONE" | "PARTIAL" | "FAILED";
   summary: ReportSummary | null;
   responses: AgentResponseRecord[];
+  triage?: TriageResult;
 }
 
-export interface ReportSummary {
-  consensus: { point: string; agentCount: number; totalAgents: number }[];
-  divergence: { pointA: string; pointB: string; splitRatio: string }[];
-  preparation: string[];
-  needDoctorConfirm: string[];
-  costRange?: { min: number; max: number; note: string };
-  riskWarning: string;
-  agentResponses: { agentId: string; summary: string; keyPoints: string[] }[];
-  noExperienceCount: number;
-  totalAgentsQueried: number;
-}
+export type { ReportSummary } from "./summary";
 
 // Query a single agent with timeout and error handling
 async function queryAgent(
   user: UserRecord,
-  question: string
+  question: string,
+  systemPrompt: string
 ): Promise<{ text: string; sessionId: string; latencyMs: number } | null> {
   const start = Date.now();
 
@@ -72,7 +66,7 @@ async function queryAgent(
     const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
 
     const result = await Promise.race([
-      chatWithAgent(user.accessToken, question, SYSTEM_PROMPT + question),
+      chatWithAgent(user.accessToken, question, systemPrompt),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("Timeout")), AGENT_TIMEOUT_MS)
       ),
@@ -101,10 +95,20 @@ export async function runConsultation(
   const consultation = createConsultation(askerId, question);
   updateConsultation(consultation.id, { status: "CONSULTING" });
 
+  // Step 1: Perform intent triage before consultation
+  const triage = await triageHealthQuestion(question);
+  console.log(`[Triage] Intent: ${triage.intent}, Confidence: ${triage.confidence}`);
+
+  // Adjust system prompt based on triage
+  const adjustedPrompt = getAdjustedSystemPrompt(SYSTEM_PROMPT + question, triage);
+
   const availableAgents = getConsultableUsers(askerId);
   const agentsToQuery = availableAgents.slice(0, MAX_CONCURRENT);
 
-  updateConsultation(consultation.id, { agentCount: agentsToQuery.length });
+  updateConsultation(consultation.id, {
+    agentCount: agentsToQuery.length,
+    triage: triage as unknown as Record<string, unknown>,
+  });
 
   if (agentsToQuery.length === 0) {
     updateConsultation(consultation.id, { status: "FAILED" });
@@ -113,12 +117,13 @@ export async function runConsultation(
       status: "FAILED",
       summary: null,
       responses: [],
+      triage,
     };
   }
 
-  // Query all agents concurrently
+  // Query all agents concurrently with adjusted prompt
   const results = await Promise.allSettled(
-    agentsToQuery.map((agent) => queryAgent(agent, question))
+    agentsToQuery.map((agent) => queryAgent(agent, question, adjustedPrompt))
   );
 
   const existingTexts: string[] = [];
@@ -207,96 +212,6 @@ export async function runConsultation(
     status,
     summary,
     responses: allResponses,
+    triage,
   };
-}
-
-// Build structured summary from valid responses
-function buildSummary(
-  responses: AgentResponseRecord[],
-  totalQueried: number,
-  noExperienceCount: number
-): ReportSummary {
-  // For the hackathon MVP, we extract key points from raw responses
-  // and build a structured report
-  const substantiveResponses = responses.filter(
-    (r) => r.isValid && !r.invalidReason?.includes("无相关经历")
-  );
-
-  const agentResponsesSummary = responses
-    .filter((r) => r.isValid)
-    .map((r) => ({
-      agentId: "匿名",
-      summary: r.rawResponse.slice(0, 200),
-      keyPoints: extractKeyPoints(r.rawResponse),
-    }));
-
-  // Extract common themes
-  const allKeyPoints = agentResponsesSummary.flatMap((r) => r.keyPoints);
-  const pointCounts = new Map<string, number>();
-  for (const point of allKeyPoints) {
-    const key = point.slice(0, 20); // Rough grouping
-    pointCounts.set(key, (pointCounts.get(key) || 0) + 1);
-  }
-
-  const consensus = allKeyPoints
-    .filter((_, i) => {
-      const key = allKeyPoints[i].slice(0, 20);
-      return (pointCounts.get(key) || 0) >= 2;
-    })
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .slice(0, 5)
-    .map((point) => ({
-      point,
-      agentCount: Math.min(
-        pointCounts.get(point.slice(0, 20)) || 1,
-        substantiveResponses.length
-      ),
-      totalAgents: substantiveResponses.length,
-    }));
-
-  return {
-    consensus,
-    divergence: [],
-    preparation: extractPreparationItems(responses),
-    needDoctorConfirm: ["具体诊断和治疗方案请咨询专业医生"],
-    riskWarning:
-      "以上信息来自其他用户 AI 的经验交流，不构成任何形式的医疗建议、诊断或治疗方案。健康问题请务必咨询专业医疗机构和医生。",
-    agentResponses: agentResponsesSummary,
-    noExperienceCount,
-    totalAgentsQueried: totalQueried,
-  };
-}
-
-// Simple key point extraction from response text
-function extractKeyPoints(text: string): string[] {
-  const points: string[] = [];
-  const sentences = text.split(/[。！？\n]+/).filter((s) => s.trim().length > 5);
-
-  for (const sentence of sentences.slice(0, 3)) {
-    points.push(sentence.trim());
-  }
-
-  return points;
-}
-
-// Extract preparation/checklist items
-function extractPreparationItems(responses: AgentResponseRecord[]): string[] {
-  const items: string[] = [];
-  const checklist_markers = ["空腹", "带上", "携带", "提前", "注意", "记得", "准备", "不要吃", "停用"];
-
-  for (const r of responses) {
-    if (!r.isValid) continue;
-    const sentences = r.rawResponse.split(/[。！？\n]+/);
-    for (const s of sentences) {
-      if (checklist_markers.some((m) => s.includes(m))) {
-        const trimmed = s.trim();
-        if (trimmed.length > 5 && trimmed.length < 100) {
-          items.push(trimmed);
-        }
-      }
-    }
-  }
-
-  // Dedup
-  return [...new Set(items)].slice(0, 8);
 }

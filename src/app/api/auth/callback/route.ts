@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForTokens, getUserInfo } from "@/lib/secondme";
 import { upsertUser } from "@/lib/db";
-import { setSession } from "@/lib/session";
+import { setSession, validateOAuthState } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
   const error = searchParams.get("error");
 
   if (error || !code) {
@@ -15,14 +16,22 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const stateValidation = await validateOAuthState(state || "");
+  if (!stateValidation.valid) {
+    console.error("OAuth state validation failed:", stateValidation.error);
+    return NextResponse.redirect(
+      new URL(
+        `/?error=${encodeURIComponent("安全验证失败，请重新登录")}`,
+        request.url
+      )
+    );
+  }
+
   try {
-    // Exchange code for tokens
     const tokens = await exchangeCodeForTokens(code);
 
-    // Get user info
     const userInfo = await getUserInfo(tokens.accessToken);
 
-    // Store user in DB
     const user = upsertUser({
       secondmeId: userInfo.userId,
       name: userInfo.name || "匿名用户",
@@ -32,7 +41,6 @@ export async function GET(request: NextRequest) {
       expiresIn: tokens.expiresIn,
     });
 
-    // Set session cookie
     await setSession({
       userId: user.id,
       secondmeId: user.secondmeId,

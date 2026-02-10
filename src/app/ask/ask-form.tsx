@@ -10,17 +10,46 @@ const QUICK_QUESTIONS = [
   "孩子反复咳嗽要不要去医院？",
 ];
 
+type TriageIntent =
+  | "experience_sharing"
+  | "emergency"
+  | "general_consultation"
+  | "medication_related";
+
+interface TriageResult {
+  intent: TriageIntent;
+  confidence: number;
+  suggestion: string;
+}
+
+const INTENT_LABELS: Record<TriageIntent, string> = {
+  experience_sharing: "经验咨询类",
+  emergency: "紧急咨询类",
+  general_consultation: "一般咨询类",
+  medication_related: "用药咨询类",
+};
+
+const INTENT_COLORS: Record<TriageIntent, string> = {
+  experience_sharing: "bg-blue-100 text-blue-800 border-blue-200",
+  emergency: "bg-red-100 text-red-800 border-red-200",
+  general_consultation: "bg-green-100 text-green-800 border-green-200",
+  medication_related: "bg-amber-100 text-amber-800 border-amber-200",
+};
+
 export default function AskForm({ userName }: { userName: string }) {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [blocked, setBlocked] = useState<{ message: string } | null>(null);
+  const [triage, setTriage] = useState<TriageResult | null>(null);
+  const [triageLoading, setTriageLoading] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setBlocked(null);
+    setTriage(null);
 
     const trimmed = question.trim();
     if (trimmed.length < 5) {
@@ -29,6 +58,27 @@ export default function AskForm({ userName }: { userName: string }) {
     }
 
     setLoading(true);
+    setTriageLoading(true);
+
+    try {
+      // Step 1: Call triage API to classify intent
+      const triageRes = await fetch("/api/act/triage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed }),
+      });
+
+      if (triageRes.ok) {
+        const triageData = await triageRes.json();
+        if (triageData.success && triageData.data) {
+          setTriage(triageData.data);
+        }
+      }
+    } catch (err) {
+      console.error("Triage error:", err);
+    } finally {
+      setTriageLoading(false);
+    }
 
     try {
       const res = await fetch("/api/consultation", {
@@ -117,6 +167,25 @@ export default function AskForm({ userName }: { userName: string }) {
             "开始众议"
           )}
         </button>
+
+        {/* Triage classification display */}
+        {(triageLoading || triage) && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-sm text-gray-500">AI识别为:</span>
+            {triageLoading ? (
+              <span className="text-sm text-gray-400 animate-pulse">分析中...</span>
+            ) : triage ? (
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${INTENT_COLORS[triage.intent]}`}
+              >
+                {INTENT_LABELS[triage.intent]}
+                <span className="ml-1 opacity-75">
+                  ({Math.round(triage.confidence * 100)}%)
+                </span>
+              </span>
+            ) : null}
+          </div>
+        )}
       </form>
 
       <div className="mt-6">

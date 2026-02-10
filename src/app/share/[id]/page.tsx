@@ -1,4 +1,5 @@
 import { getConsultation } from "@/lib/db";
+import Link from "next/link";
 
 export default async function SharePage({
   params,
@@ -12,9 +13,9 @@ export default async function SharePage({
     return (
       <div className="text-center py-12">
         <h2 className="text-xl font-bold text-gray-900">报告不存在或已过期</h2>
-        <a href="/" className="text-emerald-600 hover:underline mt-2 inline-block">
+        <Link href="/" className="text-emerald-600 hover:underline mt-2 inline-block">
           了解 MedCrowd
-        </a>
+        </Link>
       </div>
     );
   }

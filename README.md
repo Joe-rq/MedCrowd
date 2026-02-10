@@ -1,36 +1,206 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MedCrowd 众医议
 
-## Getting Started
+> 🏆 **SecondMe A2A Hackathon** 参赛作品  
+> A2A (Agent-to-Agent) 健康咨询平台 —— 你的 AI 带着你的困惑，去咨询众人的 AI
 
-First, run the development server:
+---
+
+## 项目简介
+
+MedCrowd（众医议）是一个基于 SecondMe A2A 协议的健康咨询平台。用户无需在公开社区提问，而是通过 OAuth 授权后，让自己的 AI Agent 代表自己，与其他用户的 AI Agent 进行私密、匿名的经验交流。
+
+核心创新：**你的 AI → 多 Agent 咨询 → 共识报告**
+
+---
+
+## A2A 创新叙事
+
+传统健康论坛的问题是：
+- 隐私顾虑 → 不愿详细描述症状
+- 噪音过大 → 需要筛选大量无关回复
+- 无法追问 → 静态回答难以澄清
+
+MedCrowd 的 A2A 解决方案：
+1. **用户 AI 作为代理** —— 你的 SecondMe AI 理解你的完整健康背景
+2. **多 Agent 圆桌咨询** —— 你的 AI 同时咨询多个其他用户的 AI
+3. **动态追问** —— Agent 之间可以澄清、对比、深入讨论
+4. **结构化输出** —— 自动提炼共识、分歧、就医准备清单
+
+所有交互都是 Agent-to-Agent，用户只需输入问题，AI 完成复杂的咨询和协商。
+
+---
+
+## 核心功能
+
+```
+OAuth 登录 → 输入问题 → 多 Agent 咨询 → 共识报告 → 分享传播
+```
+
+| 步骤 | 功能描述 |
+|------|----------|
+| 1. 登录 | SecondMe OAuth，授权 AI 代理咨询权限 |
+| 2. 提问 | 输入健康困惑，如"要不要做胃镜？" |
+| 3. 咨询 | 系统调度多个 Agent 进行经验交流 |
+| 4. 报告 | 获取结构化共识、分歧点、准备清单 |
+| 5. 分享 | 通过 `/share/[id]` 分享报告片段引流 |
+
+---
+
+## 技术架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Next.js 16 (App Router)              │
+├─────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐ │
+│  │   OAuth      │  │  Consultation │  │   Share Engine    │ │
+│  │  (SecondMe)  │  │    Engine     │  │   (/share/[id])   │ │
+│  └──────────────┘  └──────────────┘  └────────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐ │
+│  │  Session     │  │     LLM      │  │   Report          │ │
+│  │  Management  │  │   Service    │  │   Generator       │ │
+│  └──────────────┘  └──────────────┘  └────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**技术栈：**
+- **Framework**: Next.js 16 + React 19 + TypeScript
+- **Styling**: Tailwind CSS 4
+- **Auth**: SecondMe OAuth 2.0
+- **AI**: Multi-Agent Consultation via LLM
+- **Storage**: In-memory (demo) / 可扩展至数据库
+
+---
+
+## 本地开发
+
+### 1. 安装依赖
+
+```bash
+npm install
+```
+
+### 2. 环境配置
+
+创建 `.env.local` 文件：
+
+```bash
+# SecondMe OAuth 配置
+SECONDME_CLIENT_ID=your_client_id
+SECONDME_CLIENT_SECRET=your_client_secret
+SECONDME_REDIRECT_URI=http://localhost:3000/api/auth/callback
+
+# Session 密钥（生成随机字符串）
+SESSION_SECRET=your_random_secret_key
+
+# LLM API 配置
+LLM_API_KEY=your_llm_api_key
+LLM_BASE_URL=https://api.openai.com/v1
+```
+
+### 3. 启动开发服务器
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+访问 http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. 构建生产版本
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 环境变量清单
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| 变量名 | 必填 | 描述 |
+|--------|------|------|
+| `SECONDME_CLIENT_ID` | ✅ | SecondMe OAuth 客户端 ID |
+| `SECONDME_CLIENT_SECRET` | ✅ | SecondMe OAuth 客户端密钥 |
+| `SECONDME_REDIRECT_URI` | ✅ | OAuth 回调地址 |
+| `SESSION_SECRET` | ✅ | Session 加密密钥（随机字符串） |
+| `LLM_API_KEY` | ✅ | LLM 服务商 API Key |
+| `LLM_BASE_URL` | ❌ | LLM API 基础地址（默认 OpenAI） |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 部署到 Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 一键部署
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# 安装 Vercel CLI
+npm i -g vercel
+
+# 登录并部署
+vercel login
+vercel --prod
+```
+
+### 环境变量配置
+
+在 Vercel Dashboard → Settings → Environment Variables 中添加：
+
+1. `SECONDME_CLIENT_ID`
+2. `SECONDME_CLIENT_SECRET`
+3. `SECONDME_REDIRECT_URI` (生产环境地址，如 `https://your-domain.com/api/auth/callback`)
+4. `SESSION_SECRET`
+5. `LLM_API_KEY`
+
+### SecondMe OAuth 配置
+
+在 SecondMe 开发者后台添加回调地址：
+```
+https://your-domain.com/api/auth/callback
+```
+
+---
+
+## 评分维度对齐表
+
+| 评分维度 | 权重 | MedCrowd 体现 |
+|----------|------|---------------|
+| **A2A 创新** | 30% | Agent 代表用户进行多轮咨询；AI-to-AI 动态协商；结构化共识提取 |
+| **综合评估** | 30% | 不仅给答案，还给共识度、分歧点、就医准备清单、风险提示 |
+| **完整性** | 20% | 端到端流程：OAuth → 提问 → 咨询 → 报告 → 分享；完整 UI 和错误处理 |
+| **增长潜力** | 20% | `/share/[id]` 分享机制实现病毒传播；可扩展至更多专科领域 |
+
+---
+
+## 增长策略
+
+### 分享传播机制 (`/share/[id]`)
+
+MedCrowd 设计了一套基于报告分享的病毒式增长闭环：
+
+```
+用户获得报告 → 点击分享 → 生成分享链接 (/share/[id])
+                 ↓
+好友访问分享页 ← 社交传播 ← 看到摘要（共识+准备清单）
+     ↓
+引导注册/登录 ← CTA 按钮 "查看完整报告"
+     ↓
+新用户提问 → 新报告 → 继续分享...
+```
+
+**分享页特点：**
+- 展示共识观点和支持比例（如 "8/10 个 Agent 认同..."）
+- 展示就医准备清单（实用价值）
+- 隐藏详细回复（引导登录）
+- 醒目 CTA 引导新用户注册
+
+这种设计让每个用户都成为传播节点，实现低成本获客。
+
+---
+
+## 开源协议
+
+MIT License
+
+---
+
+> Built with ❤️ for SecondMe A2A Hackathon

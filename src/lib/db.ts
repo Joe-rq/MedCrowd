@@ -1,7 +1,60 @@
 import { randomUUID } from "crypto";
+import * as fs from "fs";
+import * as path from "path";
 
-// Simple file-based storage for hackathon
-// In production, replace with a real database
+// SQLite-like file-based storage for persistence
+// Data persists across server restarts
+
+const DATA_DIR = path.join(process.cwd(), "data");
+const DB_FILE = path.join(DATA_DIR, "medcrowd.db.json");
+
+interface Database {
+  users: Record<string, UserRecord>;
+  usersBySecondmeId: Record<string, string>; // secondmeId -> user id
+  consultations: Record<string, ConsultationRecord>;
+  agentResponses: Record<string, AgentResponseRecord[]>; // consultationId -> responses
+}
+
+// Initialize database file
+function initDatabase(): Database {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+
+  if (fs.existsSync(DB_FILE)) {
+    try {
+      const data = fs.readFileSync(DB_FILE, "utf-8");
+      return JSON.parse(data);
+    } catch {
+      // If file is corrupted, start fresh
+    }
+  }
+
+  return {
+    users: {},
+    usersBySecondmeId: {},
+    consultations: {},
+    agentResponses: {},
+  };
+}
+
+// Load database from disk
+function loadDB(): Database {
+  return initDatabase();
+}
+
+// Save database to disk (synchronous)
+function saveDB(db: Database): void {
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+}
+
+// In-memory cache for performance (loaded from disk on startup)
+const dbCache: Database = loadDB();
+
+// Persist changes immediately
+function persist(): void {
+  saveDB(dbCache);
+}
 
 export interface UserRecord {
   id: string;
@@ -23,6 +76,7 @@ export interface ConsultationRecord {
   status: "PENDING" | "CONSULTING" | "DONE" | "FAILED";
   agentCount: number;
   summary: Record<string, unknown> | null;
+  triage: Record<string, unknown> | null;
   createdAt: number;
 }
 
@@ -39,13 +93,6 @@ export interface AgentResponseRecord {
   createdAt: number;
 }
 
-// In-memory store (sufficient for hackathon demo)
-// Data persists within a single server process lifecycle
-const users = new Map<string, UserRecord>();
-const usersBySecondmeId = new Map<string, string>(); // secondmeId -> id
-const consultations = new Map<string, ConsultationRecord>();
-const agentResponses = new Map<string, AgentResponseRecord[]>(); // consultationId -> responses
-
 // ---- Users ----
 
 export function upsertUser(data: {
@@ -56,10 +103,10 @@ export function upsertUser(data: {
   refreshToken: string;
   expiresIn: number;
 }): UserRecord {
-  const existingId = usersBySecondmeId.get(data.secondmeId);
+  const existingId = dbCache.usersBySecondmeId[data.secondmeId];
 
   if (existingId) {
-    const existing = users.get(existingId)!;
+    const existing = dbCache.users[existingId];
     existing.name = data.name;
     existing.avatar = data.avatar;
     existing.accessToken = data.accessToken;
@@ -67,6 +114,7 @@ export function upsertUser(data: {
     existing.tokenExpiry = Date.now() + data.expiresIn * 1000;
     existing.consultable = true; // Reset on login
     existing.circuitBreakerUntil = undefined;
+    persist();
     return existing;
   }
 
@@ -82,23 +130,24 @@ export function upsertUser(data: {
     createdAt: Date.now(),
   };
 
-  users.set(user.id, user);
-  usersBySecondmeId.set(data.secondmeId, user.id);
+  dbCache.users[user.id] = user;
+  dbCache.usersBySecondmeId[data.secondmeId] = user.id;
+  persist();
   return user;
 }
 
 export function getUserById(id: string): UserRecord | undefined {
-  return users.get(id);
+  return dbCache.users[id];
 }
 
 export function getUserBySecondmeId(secondmeId: string): UserRecord | undefined {
-  const id = usersBySecondmeId.get(secondmeId);
-  return id ? users.get(id) : undefined;
+  const id = dbCache.usersBySecondmeId[secondmeId];
+  return id ? dbCache.users[id] : undefined;
 }
 
 export function getConsultableUsers(excludeUserId: string): UserRecord[] {
   const now = Date.now();
-  return Array.from(users.values()).filter(
+  return Object.values(dbCache.users).filter(
     (u) =>
       u.id !== excludeUserId &&
       u.consultable &&
@@ -108,9 +157,10 @@ export function getConsultableUsers(excludeUserId: string): UserRecord[] {
 }
 
 export function circuitBreakUser(userId: string, durationMs: number = 30 * 60 * 1000): void {
-  const user = users.get(userId);
+  const user = dbCache.users[userId];
   if (user) {
     user.circuitBreakerUntil = Date.now() + durationMs;
+    persist();
   }
 }
 
@@ -120,11 +170,12 @@ export function updateUserTokens(
   refreshToken: string,
   expiresIn: number
 ): void {
-  const user = users.get(userId);
+  const user = dbCache.users[userId];
   if (user) {
     user.accessToken = accessToken;
     user.refreshToken = refreshToken;
     user.tokenExpiry = Date.now() + expiresIn * 1000;
+    persist();
   }
 }
 
@@ -138,29 +189,32 @@ export function createConsultation(askerId: string, question: string): Consultat
     status: "PENDING",
     agentCount: 0,
     summary: null,
+    triage: null,
     createdAt: Date.now(),
   };
-  consultations.set(consultation.id, consultation);
-  agentResponses.set(consultation.id, []);
+  dbCache.consultations[consultation.id] = consultation;
+  dbCache.agentResponses[consultation.id] = [];
+  persist();
   return consultation;
 }
 
 export function getConsultation(id: string): ConsultationRecord | undefined {
-  return consultations.get(id);
+  return dbCache.consultations[id];
 }
 
 export function updateConsultation(
   id: string,
-  updates: Partial<Pick<ConsultationRecord, "status" | "agentCount" | "summary">>
+  updates: Partial<Pick<ConsultationRecord, "status" | "agentCount" | "summary" | "triage">>
 ): void {
-  const c = consultations.get(id);
+  const c = dbCache.consultations[id];
   if (c) {
     Object.assign(c, updates);
+    persist();
   }
 }
 
 export function getUserConsultations(userId: string): ConsultationRecord[] {
-  return Array.from(consultations.values())
+  return Object.values(dbCache.consultations)
     .filter((c) => c.askerId === userId)
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -168,12 +222,13 @@ export function getUserConsultations(userId: string): ConsultationRecord[] {
 // ---- Agent Responses ----
 
 export function addAgentResponse(response: AgentResponseRecord): void {
-  const list = agentResponses.get(response.consultationId);
+  const list = dbCache.agentResponses[response.consultationId];
   if (list) {
     list.push(response);
+    persist();
   }
 }
 
 export function getAgentResponses(consultationId: string): AgentResponseRecord[] {
-  return agentResponses.get(consultationId) || [];
+  return dbCache.agentResponses[consultationId] || [];
 }
