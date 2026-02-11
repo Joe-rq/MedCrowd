@@ -18,5 +18,6 @@ export interface ReportSummary {
 }
 
 export interface Extractor<T> {
+  name: string;
   extract(responses: AgentResponseRecord[]): T;
 }

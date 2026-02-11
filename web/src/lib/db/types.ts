@@ -31,7 +31,7 @@ export interface ConsultationRecord {
   id: string;
   askerId: string;
   question: string;
-  status: "PENDING" | "CONSULTING" | "DONE" | "FAILED";
+  status: "PENDING" | "CONSULTING" | "DONE" | "PARTIAL" | "FAILED";
   agentCount: number;
   summary: Record<string, unknown> | null;
   triage: Record<string, unknown> | null;

@@ -97,7 +97,7 @@ export async function runConsultation(
   if (summary) em.emit({ type: "summary:ready", report: summary });
 
   await updateConsultation(consultation.id, {
-    status: status === "FAILED" ? "FAILED" : "DONE",
+    status,
     summary: summary as Record<string, unknown> | null,
   });
 
