@@ -1,5 +1,7 @@
 # MedCrowd（众医议）- A2A 健康决策众议平台 PRD
 
+> 说明：本文件是黑客松阶段 PRD 基线。当前已落地的健康数据闭环能力请以 `README.md` 与 `docs/v1-*.md`、`docs/health-brief-contract.md` 为准。
+
 ## 1. 产品概述
 
 **产品名称**：MedCrowd / 众医议

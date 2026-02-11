@@ -1,217 +1,98 @@
-# MedCrowd 众医议
+# MedCrowd Web App
 
-> 🏆 **SecondMe A2A Hackathon** 参赛作品  
-> A2A (Agent-to-Agent) 健康咨询平台 —— 你的 AI 带着你的困惑，去咨询众人的 AI
+MedCrowd 的 Next.js 16 全栈应用。
 
----
+当前包含两条业务链路：
 
-## 项目简介
-
-MedCrowd（众医议）是一个基于 SecondMe A2A 协议的健康咨询平台。用户无需在公开社区提问，而是通过 OAuth 授权后，让自己的 AI Agent 代表自己，与其他用户的 AI Agent 进行私密、匿名的经验交流。
-
-核心创新：**你的 AI → 多 Agent 咨询 → 共识报告**
+- A2A 健康经验咨询（核心）
+- 个人健康数据周报与异常提醒（新增）
 
 ---
 
-## A2A 创新叙事
-
-传统健康论坛的问题是：
-- 隐私顾虑 → 不愿详细描述症状
-- 噪音过大 → 需要筛选大量无关回复
-- 无法追问 → 静态回答难以澄清
-
-MedCrowd 的 A2A 解决方案：
-1. **用户 AI 作为代理** —— 你的 SecondMe AI 理解你的完整健康背景
-2. **多 Agent 圆桌咨询** —— 你的 AI 同时咨询多个其他用户的 AI
-3. **动态追问** —— Agent 之间可以澄清、对比、深入讨论
-4. **结构化输出** —— 自动提炼共识、分歧、就医准备清单
-
-所有交互都是 Agent-to-Agent，用户只需输入问题，AI 完成复杂的咨询和协商。
-
----
-
-## 核心功能
-
-```
-OAuth 登录 → 输入问题 → 多 Agent 咨询 → 共识报告 → 分享传播
-```
-
-| 步骤 | 功能描述 |
-|------|----------|
-| 1. 登录 | SecondMe OAuth，授权 AI 代理咨询权限 |
-| 2. 提问 | 输入健康困惑，如"要不要做胃镜？" |
-| 3. 咨询 | 系统调度多个 Agent 进行经验交流 |
-| 4. 报告 | 获取结构化共识、分歧点、准备清单 |
-| 5. 分享 | 通过 `/share/[id]` 分享报告片段引流 |
-
----
-
-## 技术架构
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Next.js 16 (App Router)              │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐ │
-│  │   OAuth      │  │  Consultation │  │   Share Engine    │ │
-│  │  (SecondMe)  │  │    Engine     │  │   (/share/[id])   │ │
-│  └──────────────┘  └──────────────┘  └────────────────────┘ │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐ │
-│  │  Session     │  │     LLM      │  │   Report          │ │
-│  │  Management  │  │   Service    │  │   Generator       │ │
-│  └──────────────┘  └──────────────┘  └────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**技术栈：**
-- **Framework**: Next.js 16 + React 19 + TypeScript
-- **Styling**: Tailwind CSS 4
-- **Auth**: SecondMe OAuth 2.0
-- **AI**: Multi-Agent Consultation via LLM
-- **Storage**: In-memory (demo) / 可扩展至数据库
-
----
-
-## 本地开发
-
-### 1. 安装依赖
+## 快速开始
 
 ```bash
 npm install
-```
-
-### 2. 环境配置
-
-创建 `.env.local` 文件：
-
-```bash
-# SecondMe OAuth 配置
-SECONDME_CLIENT_ID=your_client_id
-SECONDME_CLIENT_SECRET=your_client_secret
-SECONDME_REDIRECT_URI=http://localhost:3000/api/auth/callback
-
-# SecondMe API 配置
-SECONDME_API_BASE_URL=https://app.mindos.com/gate/lab
-SECONDME_OAUTH_URL=https://go.second.me/oauth/
-
-# Session 密钥（至少 32 字符，生成: openssl rand -base64 32）
-SESSION_SECRET=your_random_secret_key_at_least_32_chars
-
-# OAuth State 校验模式 (true=严格, false=宽松/WebView 场景)
-OAUTH_STATE_STRICT=true
-
-# 应用基础 URL
-NEXT_PUBLIC_BASE_URL=http://localhost:3000
-```
-
-### 3. 启动开发服务器
-
-```bash
 npm run dev
 ```
 
-访问 http://localhost:3000
+默认地址：`http://localhost:3000`
 
-### 4. 构建生产版本
+---
+
+## 常用命令
 
 ```bash
+npm run dev
 npm run build
+npm run lint
+npm run test
+npm run verify
 ```
 
----
-
-## 环境变量清单
-
-| 变量名 | 必填 | 描述 |
-|--------|------|------|
-| `SECONDME_CLIENT_ID` | ✅ | SecondMe OAuth 客户端 ID |
-| `SECONDME_CLIENT_SECRET` | ✅ | SecondMe OAuth 客户端密钥 |
-| `SECONDME_REDIRECT_URI` | ✅ | OAuth 回调地址 |
-| `SECONDME_API_BASE_URL` | ✅ | SecondMe API 基础地址 |
-| `SECONDME_OAUTH_URL` | ✅ | SecondMe OAuth 授权地址 |
-| `SESSION_SECRET` | ✅ | Session 加密密钥（≥32 字符） |
-| `OAUTH_STATE_STRICT` | ❌ | OAuth state 校验模式（默认 true） |
-| `NEXT_PUBLIC_BASE_URL` | ❌ | 应用公开 URL（默认 localhost:3000） |
+`verify` = lint + build + smoke。
 
 ---
 
-## 部署到 Vercel
+## 主要路由
 
-### 一键部署
+### 页面
+
+- `/` 登录与入口
+- `/ask` 提问页
+- `/report/[id]` A2A 报告页
+- `/share/[id]` 分享页
+- `/health-report/[id]` 健康周报页
+- `/settings/health-consent` 健康数据同意管理页
+
+### API
+
+- `/api/auth/*` OAuth + session
+- `/api/act/triage` 分诊
+- `/api/consultation` 发起咨询
+- `/api/consultation/[id]` 轮询结果
+- `/api/health/ingest` 健康指标接入
+- `/api/health/anomaly` 异常检测
+- `/api/health/consent` 同意/撤销/审计
+
+---
+
+## 关键模块
+
+- `src/lib/engine/` A2A 编排
+- `src/lib/summary/` 报告提炼
+- `src/lib/db/` 数据持久化
+- `src/lib/health-connectors/` A/B/C 接入策略
+- `src/lib/health-report/` 周报生成
+- `src/lib/anomaly/` 异常检测与文案
+- `src/lib/consent/` 同意状态与审计
+- `src/lib/health-brief/` 异常触发咨询桥接协议
+
+---
+
+## 环境变量
+
+`web/.env.local` 示例：
 
 ```bash
-# 安装 Vercel CLI
-npm i -g vercel
-
-# 登录并部署
-vercel login
-vercel --prod
+SECONDME_CLIENT_ID=
+SECONDME_CLIENT_SECRET=
+SECONDME_REDIRECT_URI=http://localhost:3000/api/auth/callback
+SECONDME_API_BASE_URL=https://app.mindos.com/gate/lab
+SECONDME_OAUTH_URL=https://go.second.me/oauth/
+SESSION_SECRET=
+OAUTH_STATE_STRICT=true
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+DEMO_MODE=false
+REACTION_ROUND_ENABLED=true
 ```
 
-### 环境变量配置
-
-在 Vercel Dashboard → Settings → Environment Variables 中添加：
-
-1. `SECONDME_CLIENT_ID`
-2. `SECONDME_CLIENT_SECRET`
-3. `SECONDME_REDIRECT_URI` (生产环境地址，如 `https://your-domain.vercel.app/api/auth/callback`)
-4. `SECONDME_API_BASE_URL`
-5. `SECONDME_OAUTH_URL`
-6. `SESSION_SECRET`
-7. `NEXT_PUBLIC_BASE_URL`
-
-### SecondMe OAuth 配置
-
-在 SecondMe 开发者后台添加回调地址：
-```
-https://your-domain.vercel.app/api/auth/callback
-```
-注意：同时保留 `http://localhost:3000/api/auth/callback` 以确保本地开发不受影响。
+在 Vercel 部署时需要绑定 KV（`KV_REST_API_URL`、`KV_REST_API_TOKEN`）。
 
 ---
 
-## 评分维度对齐表
+## 测试说明
 
-| 评分维度 | 权重 | MedCrowd 体现 |
-|----------|------|---------------|
-| **A2A 创新** | 30% | Agent 代表用户进行多轮咨询；AI-to-AI 动态协商；结构化共识提取 |
-| **综合评估** | 30% | 不仅给答案，还给共识度、分歧点、就医准备清单、风险提示 |
-| **完整性** | 20% | 端到端流程：OAuth → 提问 → 咨询 → 报告 → 分享；完整 UI 和错误处理 |
-| **增长潜力** | 20% | `/share/[id]` 分享机制实现病毒传播；可扩展至更多专科领域 |
-
----
-
-## 增长策略
-
-### 分享传播机制 (`/share/[id]`)
-
-MedCrowd 设计了一套基于报告分享的病毒式增长闭环：
-
-```
-用户获得报告 → 点击分享 → 生成分享链接 (/share/[id])
-                 ↓
-好友访问分享页 ← 社交传播 ← 看到摘要（共识+准备清单）
-     ↓
-引导注册/登录 ← CTA 按钮 "查看完整报告"
-     ↓
-新用户提问 → 新报告 → 继续分享...
-```
-
-**分享页特点：**
-- 展示共识观点和支持比例（如 "8/10 个 Agent 认同..."）
-- 展示就医准备清单（实用价值）
-- 隐藏详细回复（引导登录）
-- 醒目 CTA 引导新用户注册
-
-这种设计让每个用户都成为传播节点，实现低成本获客。
-
----
-
-## 开源协议
-
-MIT License
-
----
-
-> Built with ❤️ for SecondMe A2A Hackathon
+- 推荐提交前执行：`npm run verify`
+- 部分 DB 相关测试在 Windows 上可能偶发文件锁（`EPERM/ENOENT`）；
+  如遇到可按模块执行 Vitest 用例复核。
