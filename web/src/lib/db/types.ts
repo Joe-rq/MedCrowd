@@ -52,6 +52,52 @@ export interface AgentResponseRecord {
   round?: "initial" | "reaction";
 }
 
+// Health Metric Types (V1)
+
+export type HealthMetricType = "weight" | "bmi" | "sleep" | "heartRate" | "hrv";
+
+export type MetricGranularity = "raw" | "weekly";
+
+export interface HealthMetricPoint {
+  timestamp: number; // Unix timestamp ms
+  value: number;
+  unit: string;
+  source: string; // e.g., "apple_health", "manual_entry", "fitbit"
+  confidence: number; // 0-1, data quality indicator
+  metadata?: Record<string, unknown>; // Flexible extension point
+}
+
+export interface WeeklySnapshot {
+  weekId: string; // ISO week format: "2024-W03"
+  startDate: number; // Unix timestamp ms
+  endDate: number; // Unix timestamp ms
+  metricType: HealthMetricType;
+  avg: number;
+  min: number;
+  max: number;
+  count: number;
+  unit: string;
+  source: string;
+  confidence: number;
+  // Reference to raw data for audit trail
+  rawDataPoints: number;
+}
+
+export interface HealthMetricsIndex {
+  userId: string;
+  metricTypes: HealthMetricType[];
+  lastUpdated: number;
+  rawRetentionCutoff: number; // Unix timestamp ms - data older than this is in weekly only
+}
+
+// Migration trigger tracking
+export interface StorageLatencyMetrics {
+  operation: string;
+  latencyMs: number;
+  timestamp: number;
+  keyPattern: string;
+}
+
 // KV Key schema (centralized)
 export const KV_KEYS = {
   user: (userId: string) => `user:${userId}`,
@@ -62,4 +108,32 @@ export const KV_KEYS = {
   responses: (consultationId: string) => `responses:${consultationId}`,
   idempotent: (consultationId: string, round: number, agentId: string) =>
     `consultation:${consultationId}:round:${round}:agent:${agentId}`,
+  // Health metrics keys
+  health: {
+    rawMetric: (userId: string, metricType: HealthMetricType, date: string) =>
+      `health:${userId}:raw:${metricType}:${date}`,
+    weeklySnapshot: (userId: string, metricType: HealthMetricType, weekId: string) =>
+      `health:${userId}:weekly:${metricType}:${weekId}`,
+    userMetricsIndex: (userId: string) => `health:${userId}:metrics`,
+    latencyMetrics: (timestamp: number) => `health:metrics:latency:${timestamp}`,
+  },
+  // Consent and audit keys
+  consent: {
+    record: (userId: string) => `consent:${userId}`,
+    auditEvents: (userId: string) => `consent:audit:${userId}`,
+  },
+};
+
+// Retention constants
+export const RETENTION = {
+  RAW_DAYS: 7,
+  WEEKLY_DAYS: 90,
+  RAW_TTL_SECONDS: 7 * 24 * 60 * 60, // 7 days
+  WEEKLY_TTL_SECONDS: 90 * 24 * 60 * 60, // 90 days
+};
+
+// Migration trigger thresholds
+export const MIGRATION_TRIGGERS = {
+  P95_LATENCY_MS: 300,
+  RETENTION_DAYS: 180,
 };

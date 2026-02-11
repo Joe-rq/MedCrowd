@@ -6,9 +6,18 @@ import { createKvAdapter } from "./kv-adapter";
 import { createUserOps } from "./users";
 import { createConsultationOps } from "./consultations";
 import { createResponseOps } from "./responses";
+import { createHealthMetricsOps } from "./health-metrics";
+import { createConsentOps } from "@/lib/consent/store";
 
 // Re-export types for backward compatibility
 export type { UserRecord, ConsultationRecord, AgentResponseRecord } from "./types";
+export type {
+  HealthMetricType,
+  HealthMetricPoint,
+  WeeklySnapshot,
+  HealthMetricsIndex,
+  StorageLatencyMetrics,
+} from "./types";
 
 // Environment detection
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
@@ -21,6 +30,8 @@ const adapter: DbAdapter = USE_JSON_MODE ? createJsonAdapter() : createKvAdapter
 const userOps = createUserOps(adapter);
 const consultationOps = createConsultationOps(adapter);
 const responseOps = createResponseOps(adapter);
+const healthMetricsOps = createHealthMetricsOps(adapter);
+const consentOps = createConsentOps(adapter);
 
 // Export flat API (backward compatible)
 export const upsertUser = userOps.upsertUser;
@@ -39,8 +50,29 @@ export const addAgentResponse = responseOps.addAgentResponse;
 export const addAgentResponsesBatch = responseOps.addAgentResponsesBatch;
 export const getAgentResponses = responseOps.getAgentResponses;
 
+export const addHealthMetric = healthMetricsOps.addRawMetric;
+export const addHealthMetricsBatch = healthMetricsOps.addRawMetricsBatch;
+export const getHealthMetrics = healthMetricsOps.getRawMetrics;
+export const getHealthMetricsForWindow = healthMetricsOps.getMetricsForWindow;
+export const saveWeeklyHealthSnapshot = healthMetricsOps.saveWeeklySnapshot;
+export const getWeeklyHealthSnapshots = healthMetricsOps.getWeeklySnapshots;
+export const aggregateHealthToWeekly = healthMetricsOps.aggregateToWeekly;
+export const getUserHealthMetricTypes = healthMetricsOps.getUserMetricTypes;
+export const deleteUserHealthMetrics = healthMetricsOps.deleteAllUserMetrics;
+export const checkHealthMetricsMigrationTriggers = healthMetricsOps.checkMigrationTriggers;
+
+// Consent operations
+export const getConsentRecord = consentOps.getConsentRecord.bind(consentOps);
+export const checkConsent = consentOps.checkConsent.bind(consentOps);
+export const grantConsent = consentOps.grantConsent.bind(consentOps);
+export const revokeConsent = consentOps.revokeConsent.bind(consentOps);
+export const hasValidConsent = consentOps.hasValidConsent.bind(consentOps);
+export const getConsentAuditEvents = consentOps.getAuditEvents.bind(consentOps);
+export const logSyncBlocked = consentOps.logSyncBlocked.bind(consentOps);
+
 // Utility exports
 export { resetJsonCache as resetJSONCache } from "./json-adapter";
+export { getWeekId } from "./health-metrics";
 
 export async function checkDBHealth(): Promise<{ healthy: boolean; mode: string; error?: string }> {
   try {

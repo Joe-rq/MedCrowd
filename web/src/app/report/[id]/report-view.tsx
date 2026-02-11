@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+  emitWeeklyReportOpened,
+  emitReportShared,
+} from "@/lib/analytics/health-events";
 
 interface Consultation {
   id: string;
@@ -32,21 +36,41 @@ export default function ReportView({
   consultation,
   responses,
   shareBaseUrl,
+  userId,
 }: {
   consultation: Consultation;
   responses: AgentResponse[];
   shareBaseUrl: string;
+  userId: string;
 }) {
   const [copied, setCopied] = useState(false);
   const summary = consultation.summary;
   const validResponses = responses.filter((r) => r.isValid);
   const isPartial = consultation.status === "PARTIAL" || (summary && validResponses.length < 3);
 
+  useEffect(() => {
+    if (summary) {
+      emitWeeklyReportOpened({
+        userId,
+        reportId: `report_${consultation.id}`,
+        hasAnomaly: false,
+        consultationId: consultation.id,
+      });
+    }
+  }, [userId, consultation.id, summary]);
+
   function handleShare() {
     const url = `${shareBaseUrl}/share/${consultation.id}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+
+      emitReportShared({
+        userId,
+        reportId: `report_${consultation.id}`,
+        shareChannel: "copy_link",
+        consultationId: consultation.id,
+      });
     });
   }
 

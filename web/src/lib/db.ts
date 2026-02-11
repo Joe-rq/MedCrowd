@@ -16,10 +16,36 @@ export {
   checkDBHealth,
   getDBMode,
   resetJSONCache,
+  // Health metrics exports
+  addHealthMetric,
+  addHealthMetricsBatch,
+  getHealthMetrics,
+  getHealthMetricsForWindow,
+  saveWeeklyHealthSnapshot,
+  getWeeklyHealthSnapshots,
+  aggregateHealthToWeekly,
+  getUserHealthMetricTypes,
+  deleteUserHealthMetrics,
+  checkHealthMetricsMigrationTriggers,
+  // Consent operations
+  getConsentRecord,
+  checkConsent,
+  grantConsent,
+  revokeConsent,
+  hasValidConsent,
+  getConsentAuditEvents,
+  logSyncBlocked,
+  getWeekId,
 } from "./db/index";
 
 export type {
   UserRecord,
   ConsultationRecord,
   AgentResponseRecord,
+  // Health metrics types
+  HealthMetricType,
+  HealthMetricPoint,
+  WeeklySnapshot,
+  HealthMetricsIndex,
+  StorageLatencyMetrics,
 } from "./db/index";

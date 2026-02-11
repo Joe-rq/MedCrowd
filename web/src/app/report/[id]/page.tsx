@@ -34,6 +34,7 @@ export default async function ReportPage({
       consultation={consultation}
       responses={responses}
       shareBaseUrl={process.env.NEXT_PUBLIC_BASE_URL || ""}
+      userId={session.userId}
     />
   );
 }
