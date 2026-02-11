@@ -38,3 +38,6 @@ Thumbs.db
 
 # Local-only docs (not for public repo)
 docs/*.local.md
+
+# AI editor working files
+.sisyphus/
