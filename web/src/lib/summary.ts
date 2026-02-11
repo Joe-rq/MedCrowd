@@ -69,9 +69,9 @@ export function buildSummary(
 
   return {
     consensus,
-    divergence: [],
+    divergence: extractDivergence(responses),
     preparation: extractPreparationItems(responses),
-    needDoctorConfirm: ["具体诊断和治疗方案请咨询专业医生"],
+    needDoctorConfirm: extractDoctorConfirmItems(responses),
     costRange,
     riskWarning:
       "以上信息来自其他用户 AI 的经验交流，不构成任何形式的医疗建议、诊断或治疗方案。健康问题请务必咨询专业医疗机构和医生。",
@@ -167,4 +167,99 @@ function extractPreparationItems(responses: AgentResponseRecord[]): string[] {
   }
 
   return [...new Set(items)].slice(0, 8);
+}
+
+// Extract divergence (opposing viewpoints) from responses
+function extractDivergence(
+  responses: AgentResponseRecord[]
+): { pointA: string; pointB: string; splitRatio: string }[] {
+  const validResponses = responses.filter((r) => r.isValid);
+  if (validResponses.length < 2) return [];
+
+  // Define opposing keyword pairs
+  const opposingPairs = [
+    ['建议', '不建议'],
+    ['可以', '不要'],
+    ['需要', '不需要'],
+    ['应该', '不应该'],
+    ['先', '直接'],
+    ['要', '别'],
+    ['做', '不做'],
+    ['去', '不去'],
+    ['吃', '不吃'],
+    ['用', '不用'],
+  ];
+
+  const divergences: { pointA: string; pointB: string; splitRatio: string }[] = [];
+
+  // Check each opposing pair
+  for (const [positive, negative] of opposingPairs) {
+    const positiveResponses: string[] = [];
+    const negativeResponses: string[] = [];
+
+    for (const r of validResponses) {
+      const sentences = r.rawResponse.split(/[。！？\n]+/);
+      for (const sentence of sentences) {
+        const trimmed = sentence.trim();
+        if (trimmed.length < 5 || trimmed.length > 100) continue;
+
+        if (trimmed.includes(positive) && !trimmed.includes(negative)) {
+          positiveResponses.push(trimmed);
+        } else if (trimmed.includes(negative)) {
+          negativeResponses.push(trimmed);
+        }
+      }
+    }
+
+    // If we found opposing viewpoints, record the divergence
+    if (positiveResponses.length > 0 && negativeResponses.length > 0) {
+      const total = positiveResponses.length + negativeResponses.length;
+      const ratio = `${positiveResponses.length}:${negativeResponses.length}`;
+
+      divergences.push({
+        pointA: positiveResponses[0],
+        pointB: negativeResponses[0],
+        splitRatio: ratio,
+      });
+    }
+  }
+
+  return divergences.slice(0, 3); // Return top 3 divergences
+}
+
+// Extract items that need doctor confirmation from responses
+function extractDoctorConfirmItems(responses: AgentResponseRecord[]): string[] {
+  const keywords = [
+    '问医生', '咨询医生', '医生确认', '遵医嘱',
+    '复查', '进一步检查', '确诊', '医生建议',
+    '就医', '看医生', '去医院', '专业医生',
+    '医疗机构', '诊断', '治疗方案',
+  ];
+
+  const items: string[] = [];
+
+  for (const r of responses) {
+    if (!r.isValid) continue;
+    const sentences = r.rawResponse.split(/[。！？\n]+/);
+
+    for (const sentence of sentences) {
+      const trimmed = sentence.trim();
+      if (trimmed.length < 5 || trimmed.length > 150) continue;
+
+      // Check if sentence contains any of the keywords
+      if (keywords.some((keyword) => trimmed.includes(keyword))) {
+        items.push(trimmed);
+      }
+    }
+  }
+
+  // Remove duplicates and limit to 5 items
+  const uniqueItems = [...new Set(items)].slice(0, 5);
+
+  // If no items found, return default message
+  if (uniqueItems.length === 0) {
+    return ["具体诊断和治疗方案请咨询专业医生"];
+  }
+
+  return uniqueItems;
 }

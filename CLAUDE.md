@@ -35,9 +35,9 @@ cd web && npm run lint         # eslint
 - **Framework**: Next.js 16 (App Router, React 19, TypeScript 5)
 - **Styling**: Tailwind CSS 4
 - **Auth**: SecondMe OAuth 2.0 + iron-session (encrypted cookies)
-- **AI**: SecondMe Chat API (SSE streaming)
-- **Storage**: File-based JSON (`web/data/medcrowd.db.json`) — ephemeral on Vercel
-- **Testing**: Vitest 3 (pool: forks, maxForks: 4, maxConcurrency: 2)
+- **AI**: SecondMe Chat API (SSE streaming) + Act API (intent classification)
+- **Storage**: Vercel KV (Upstash Redis) — key-value store for users, consultations, responses
+- **Testing**: Vitest 3 (pool: forks, maxForks: 4, maxConcurrency: 2) — constrained for resource limits
 - **Deploy target**: Vercel serverless
 
 ## Architecture
@@ -46,16 +46,18 @@ cd web && npm run lint         # eslint
 
 ```
 User question → Safety check → Triage classification → Select agents (max 5)
-→ Parallel SecondMe chat queries → Validate responses → Build summary → Report
+→ Parallel SecondMe chat queries (Round 1) → Validate responses
+→ [If ≥2 valid] Reaction round (Round 2: agents respond to each other)
+→ Build summary → Report
 ```
 
 ### Core Modules (`web/src/lib/`)
 
 | Module | Responsibility |
 |--------|---------------|
-| `engine.ts` | A2A consultation orchestration (`runConsultation`, `queryAgent`) |
+| `engine.ts` | A2A consultation orchestration with reaction round (`runConsultation`, `queryAgent`) |
 | `secondme.ts` | SecondMe OAuth & Chat API client |
-| `db.ts` | In-memory JSON file persistence (users, consultations, agent responses) |
+| `db.ts` | Vercel KV persistence layer (users, consultations, agent responses) |
 | `summary.ts` | Report synthesis (consensus, divergence, preparation extraction) |
 | `act.ts` | Health question triage/intent classification |
 | `validator.ts` | Response validation (length, dedup, boilerplate detection) |
@@ -76,8 +78,9 @@ User question → Safety check → Triage classification → Select agents (max 
 
 ### Key Data Types
 
-- **ConsultationRecord**: status flows `PENDING → CONSULTING → DONE | FAILED`
-- **ReportSummary**: `consensus[]`, `divergence[]`, `preparation[]`, `needDoctorConfirm[]`, `costRange?`, `riskWarning`, `agentResponses[]`
+- **ConsultationRecord**: status flows `PENDING → CONSULTING → DONE | FAILED | PARTIAL`
+- **ReportSummary**: `consensus[]`, `divergence[]`, `preparation[]`, `needDoctorConfirm[]`, `costRange?`, `riskWarning`, `agentResponses[]`, `reactionHighlights?[]`
+- **AgentResponseRecord**: includes `round: 'initial' | 'reaction'` to distinguish consultation rounds
 - **UserRecord**: includes `consultable` flag and `circuitBreakerUntil` for error backoff
 
 ### Pages (`web/src/app/`)
@@ -96,18 +99,22 @@ SECONDME_CLIENT_SECRET
 SECONDME_REDIRECT_URI
 SECONDME_API_BASE_URL          # https://app.mindos.com/gate/lab
 SECONDME_OAUTH_URL             # https://go.second.me/oauth/
-SESSION_SECRET                 # ≥32 chars
+SESSION_SECRET                 # ≥32 chars (generate with: openssl rand -base64 32)
 OAUTH_STATE_STRICT             # true/false
 NEXT_PUBLIC_BASE_URL           # Public app URL for share links
+DEMO_MODE                      # true/false (enables mock responses when SecondMe API unavailable)
+REACTION_ROUND_ENABLED         # true/false (enables agent-to-agent reaction round)
 ```
 
-## Known Issues (per docs/OPTIMIZATION.md)
+Vercel deployment also requires:
+- `KV_REST_API_URL` and `KV_REST_API_TOKEN` (auto-injected when KV store is linked)
 
-1. **Vercel persistence broken**: `fs.writeFileSync` doesn't survive cold starts — needs migration to Vercel KV
-2. **A2A interaction is fan-out only**: No agent-to-agent reaction round yet
-3. **Report fields incomplete**: `divergence`, `costRange`, `needDoctorConfirm` often empty/hardcoded
-4. **CORS config contradictory**: `Allow-Origin: *` with `Allow-Credentials: true`
-5. **`next.config.ts` has `output: 'standalone'`**: Intended for Docker, may conflict with Vercel
+## Known Limitations
+
+1. **Storage is ephemeral on Vercel**: Uses Vercel KV (Upstash Redis) which is suitable for demo but may need migration to persistent DB for production
+2. **Reaction round gating**: Agent-to-agent reaction round only triggers when first round has ≥2 valid responses
+3. **Report field completeness**: `divergence`, `costRange`, `needDoctorConfirm` may be empty when insufficient data is available from agent responses
+4. **Share links**: No expiration mechanism implemented
 
 ## Path Alias
 
