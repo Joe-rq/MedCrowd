@@ -19,7 +19,10 @@ export default async function Home({
         <h1 className="text-4xl font-bold text-gray-900 mb-3">
           MedCrowd <span className="text-emerald-600">众医议</span>
         </h1>
-        <p className="text-lg text-gray-600 max-w-md">
+        <p className="text-xl text-gray-500 mb-2 italic">
+          这次，&ldquo;我有个朋友&rdquo;是真的
+        </p>
+        <p className="text-sm text-gray-400 max-w-md">
           你的 AI 带着你的健康困惑，去和其他人的 AI 交流经验和看法
         </p>
       </div>
