@@ -1,4 +1,4 @@
-import { getIronSession, IronSession } from "iron-session";
+import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 
 const SESSION_COOKIE = "medcrowd_session";
@@ -94,16 +94,13 @@ function getOAuthStateOptions() {
   };
 }
 
-export async function setOAuthState(
-  state: string,
-  strictMode = true
-): Promise<void> {
+export async function setOAuthState(state: string): Promise<void> {
   const cookieStore = await cookies();
   const session = await getIronSession<OAuthStateStore>(
     cookieStore,
     getOAuthStateOptions()
   );
-  session.oauthState = { state, strictMode };
+  session.oauthState = { state, strictMode: true };
   await session.save();
 }
 
@@ -119,25 +116,18 @@ export async function validateOAuthState(
   const storedState = session.oauthState;
 
   if (!storedState) {
-    return { valid: false, error: "Missing OAuth state - possible CSRF attack" };
+    return { valid: false, error: "登录状态异常，请重新登录" };
   }
 
   // Clear the state immediately (one-time use)
   session.destroy();
 
-  // Strict mode: exact match required
-  if (storedState.strictMode) {
-    if (storedState.state !== receivedState) {
-      return {
-        valid: false,
-        error: "Invalid OAuth state - possible CSRF attack",
-      };
-    }
-  } else {
-    // Loose mode: allow if not empty (for WebView scenarios)
-    if (!receivedState || !storedState.state) {
-      return { valid: false, error: "Invalid OAuth state" };
-    }
+  // Always require exact match
+  if (storedState.state !== receivedState) {
+    return {
+      valid: false,
+      error: "登录状态异常，请重新登录",
+    };
   }
 
   return { valid: true };

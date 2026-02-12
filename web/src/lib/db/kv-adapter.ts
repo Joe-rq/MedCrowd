@@ -9,9 +9,15 @@ export function createKvAdapter(): DbAdapter {
       return kv.get<T>(key);
     },
 
-    async set(key: string, value: unknown, options?: { ex?: number }): Promise<void> {
-      if (options?.ex) {
-        await kv.set(key, value, { ex: options.ex });
+    async set(key: string, value: unknown, options?: { ex?: number; nx?: boolean }): Promise<boolean | void> {
+      const kvOptions: Record<string, unknown> = {};
+      if (options?.ex) kvOptions.ex = options.ex;
+      if (options?.nx) kvOptions.nx = true;
+
+      if (Object.keys(kvOptions).length > 0) {
+        const result = await kv.set(key, value, kvOptions);
+        // When nx is used, result is null if key already exists
+        if (options?.nx) return result !== null;
       } else {
         await kv.set(key, value);
       }

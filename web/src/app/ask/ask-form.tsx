@@ -101,7 +101,7 @@ export default function AskForm({ userName }: { userName: string }) {
         return;
       }
 
-      // Navigate to report page
+      // Immediately redirect — consultation runs async via after()
       router.push(`/report/${data.consultationId}`);
     } catch {
       setError("网络错误，请重试");

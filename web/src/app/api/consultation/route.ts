@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { getSession } from "@/lib/session";
 import { checkSafety } from "@/lib/safety";
+import { createConsultation, updateConsultation } from "@/lib/db";
 import { runConsultation } from "@/lib/engine";
 
 export async function POST(request: NextRequest) {
@@ -36,15 +38,17 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Run consultation
-  try {
-    const result = await runConsultation(session.userId, question);
-    return NextResponse.json(result);
-  } catch (err) {
-    console.error("Consultation error:", err);
-    return NextResponse.json(
-      { error: "咨询过程中出现错误，请稍后重试" },
-      { status: 500 }
-    );
-  }
+  // Create consultation record immediately, run async
+  const consultation = await createConsultation(session.userId, question);
+
+  after(async () => {
+    try {
+      await runConsultation(session.userId, question, undefined, consultation.id);
+    } catch (err) {
+      console.error("Consultation error:", err);
+      await updateConsultation(consultation.id, { status: "FAILED" });
+    }
+  });
+
+  return NextResponse.json({ consultationId: consultation.id, status: "PENDING" });
 }

@@ -1,8 +1,43 @@
 // Single agent query with token refresh and timeout
 
 import { chatWithAgent, refreshAccessToken } from "../secondme";
-import { circuitBreakUser, updateUserTokens, type UserRecord } from "../db";
+import {
+  circuitBreakUser,
+  updateUserTokens,
+  getUserById,
+  acquireLock,
+  releaseLock,
+  type UserRecord,
+} from "../db";
 import { AGENT_TIMEOUT_MS } from "./prompts";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function refreshTokenWithLock(user: UserRecord): Promise<string | null> {
+  const lockKey = `token-refresh:${user.id}`;
+  const acquired = await acquireLock(lockKey, 10);
+
+  if (acquired) {
+    try {
+      const tokens = await refreshAccessToken(user.refreshToken);
+      await updateUserTokens(user.id, tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
+      return tokens.accessToken;
+    } catch {
+      await circuitBreakUser(user.id);
+      return null;
+    } finally {
+      await releaseLock(lockKey);
+    }
+  }
+
+  // Another process is refreshing — wait and read the updated token
+  await sleep(200);
+  const updated = await getUserById(user.id);
+  if (updated && updated.tokenExpiry > Date.now() + 30_000) {
+    return updated.accessToken;
+  }
+  return null;
+}
 
 export async function queryAgent(
   user: UserRecord,
@@ -13,14 +48,9 @@ export async function queryAgent(
 
   // Refresh token if expiring soon
   if (user.tokenExpiry < Date.now() + 60_000) {
-    try {
-      const tokens = await refreshAccessToken(user.refreshToken);
-      await updateUserTokens(user.id, tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
-      user.accessToken = tokens.accessToken;
-    } catch {
-      await circuitBreakUser(user.id);
-      return null;
-    }
+    const newToken = await refreshTokenWithLock(user);
+    if (!newToken) return null;
+    user.accessToken = newToken;
   }
 
   try {

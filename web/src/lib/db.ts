@@ -36,6 +36,14 @@ export {
   getConsentAuditEvents,
   logSyncBlocked,
   getWeekId,
+  // Feedback operations
+  submitFeedback,
+  getFeedback,
+  // Lock and event helpers
+  acquireLock,
+  releaseLock,
+  pushEvent,
+  getEvents,
 } from "./db/index";
 
 export type {
@@ -48,4 +56,6 @@ export type {
   WeeklySnapshot,
   HealthMetricsIndex,
   StorageLatencyMetrics,
+  // Feedback types
+  FeedbackRecord,
 } from "./db/index";

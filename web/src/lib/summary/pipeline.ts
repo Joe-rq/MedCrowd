@@ -1,4 +1,5 @@
 // Summary pipeline - compose extractors into a report
+// LLM-first with rule-engine fallback
 
 import type { AgentResponseRecord, ReportSummary } from "./types";
 import { extractKeyPoints } from "./extractors/key-points";
@@ -7,13 +8,16 @@ import { extractDivergence } from "./extractors/divergence";
 import { extractPreparation } from "./extractors/preparation";
 import { extractDoctorConfirm } from "./extractors/doctor";
 import { extractCostRange } from "./extractors/cost";
+import { llmSummarize } from "./llm-summarizer";
 
-export function buildSummary(
+export async function buildSummary(
   responses: AgentResponseRecord[],
   totalQueried: number,
   noExperienceCount: number,
-  reactionResponses?: AgentResponseRecord[]
-): ReportSummary {
+  reactionResponses?: AgentResponseRecord[],
+  question?: string,
+  askerAccessToken?: string
+): Promise<ReportSummary> {
   const validResponses = responses.filter((r) => r.isValid);
 
   const agentResponses = validResponses.map((r) => ({
@@ -30,12 +34,18 @@ export function buildSummary(
       references: extractKeyPoints(r.rawResponse).slice(0, 2),
     }));
 
+  // Try LLM summarization first
+  const llmResult =
+    question && askerAccessToken
+      ? await llmSummarize(responses, question, askerAccessToken)
+      : null;
+
   return {
-    consensus: extractConsensus(responses),
-    divergence: extractDivergence(responses),
-    preparation: extractPreparation(responses),
-    needDoctorConfirm: extractDoctorConfirm(responses),
-    costRange: extractCostRange(responses),
+    consensus: llmResult?.consensus ?? extractConsensus(responses),
+    divergence: llmResult?.divergence ?? extractDivergence(responses),
+    preparation: llmResult?.preparation ?? extractPreparation(responses),
+    needDoctorConfirm: llmResult?.needDoctorConfirm ?? extractDoctorConfirm(responses),
+    costRange: llmResult?.costRange ?? extractCostRange(responses),
     riskWarning:
       "以上信息来自其他用户 AI 的经验交流，不构成任何形式的医疗建议、诊断或治疗方案。健康问题请务必咨询专业医疗机构和医生。",
     agentResponses,

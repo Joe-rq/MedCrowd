@@ -7,10 +7,11 @@ import { createUserOps } from "./users";
 import { createConsultationOps } from "./consultations";
 import { createResponseOps } from "./responses";
 import { createHealthMetricsOps } from "./health-metrics";
+import { createFeedbackOps } from "./feedback";
 import { createConsentOps } from "@/lib/consent/store";
 
 // Re-export types for backward compatibility
-export type { UserRecord, ConsultationRecord, AgentResponseRecord } from "./types";
+export type { UserRecord, ConsultationRecord, AgentResponseRecord, FeedbackRecord } from "./types";
 export type {
   HealthMetricType,
   HealthMetricPoint,
@@ -32,6 +33,7 @@ const consultationOps = createConsultationOps(adapter);
 const responseOps = createResponseOps(adapter);
 const healthMetricsOps = createHealthMetricsOps(adapter);
 const consentOps = createConsentOps(adapter);
+const feedbackOps = createFeedbackOps(adapter);
 
 // Export flat API (backward compatible)
 export const upsertUser = userOps.upsertUser;
@@ -70,6 +72,10 @@ export const hasValidConsent = consentOps.hasValidConsent.bind(consentOps);
 export const getConsentAuditEvents = consentOps.getAuditEvents.bind(consentOps);
 export const logSyncBlocked = consentOps.logSyncBlocked.bind(consentOps);
 
+// Feedback operations
+export const submitFeedback = feedbackOps.submitFeedback;
+export const getFeedback = feedbackOps.getFeedback;
+
 // Utility exports
 export { resetJsonCache as resetJSONCache } from "./json-adapter";
 export { getWeekId } from "./health-metrics";
@@ -85,6 +91,31 @@ export async function checkDBHealth(): Promise<{ healthy: boolean; mode: string;
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+// Distributed lock helpers
+export async function acquireLock(key: string, ttlSeconds: number = 10): Promise<boolean> {
+  const result = await adapter.set(`lock:${key}`, "1", { ex: ttlSeconds, nx: true });
+  return result === true;
+}
+
+export async function releaseLock(key: string): Promise<void> {
+  await adapter.del(`lock:${key}`);
+}
+
+// KV event helpers (for SSE streaming)
+export async function pushEvent(key: string, event: string, ttlSeconds: number = 300): Promise<void> {
+  await adapter.lpush(key, event);
+  // Set TTL on first push (approximate — lpush doesn't support ex, so we use set for a sentinel)
+  const sentinelKey = `${key}:ttl`;
+  const exists = await adapter.get(sentinelKey);
+  if (!exists) {
+    await adapter.set(sentinelKey, "1", { ex: ttlSeconds });
+  }
+}
+
+export async function getEvents(key: string, start: number, stop: number): Promise<string[]> {
+  return adapter.lrange(key, start, stop);
 }
 
 export function getDBMode(): "json" | "kv" {

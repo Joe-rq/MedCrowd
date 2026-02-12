@@ -3,10 +3,12 @@
 import { randomUUID } from "crypto";
 import {
   getConsultableUsers,
+  getUserById,
   createConsultation,
   updateConsultation,
   addAgentResponsesBatch,
   getAgentResponses,
+  pushEvent,
   type AgentResponseRecord,
 } from "../db";
 import { validateResponse, isDuplicate } from "../validator";
@@ -28,10 +30,24 @@ export interface ConsultationResult {
 export async function runConsultation(
   askerId: string,
   question: string,
-  emitter?: ConsultationEmitter
+  emitter?: ConsultationEmitter,
+  existingConsultationId?: string
 ): Promise<ConsultationResult> {
   const em = emitter ?? new ConsultationEmitter();
-  const consultation = await createConsultation(askerId, question);
+  const askerUser = await getUserById(askerId);
+  const askerAccessToken = askerUser?.accessToken ?? "";
+
+  // Use pre-created consultation or create a new one
+  const consultation = existingConsultationId
+    ? { id: existingConsultationId }
+    : await createConsultation(askerId, question);
+
+  // Register KV event handler for SSE streaming
+  const eventKey = `consultation-events:${consultation.id}`;
+  em.on((event) => {
+    pushEvent(eventKey, JSON.stringify(event), 300).catch(() => {});
+  });
+
   await updateConsultation(consultation.id, { status: "CONSULTING" });
   em.emit({ type: "consultation:start", consultationId: consultation.id, question });
 
@@ -83,10 +99,10 @@ export async function runConsultation(
   let status: "DONE" | "PARTIAL" | "FAILED";
 
   if (validCount >= 3) {
-    summary = buildSummary(validResponses, agentsToQuery.length, noExperienceCount, reactionResponses);
+    summary = await buildSummary(validResponses, agentsToQuery.length, noExperienceCount, reactionResponses, question, askerAccessToken);
     status = failedWrites.length > 0 ? "PARTIAL" : "DONE";
   } else if (validCount > 0 || noExperienceCount > 0) {
-    summary = buildSummary(validResponses, agentsToQuery.length, noExperienceCount, reactionResponses);
+    summary = await buildSummary(validResponses, agentsToQuery.length, noExperienceCount, reactionResponses, question, askerAccessToken);
     status = "PARTIAL";
   } else if (finalResponses.length < agentsToQuery.length) {
     status = "PARTIAL";

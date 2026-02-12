@@ -90,10 +90,14 @@ export function createJsonAdapter(): DbAdapter {
     },
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async set(key: string, value: unknown, _options?: { ex?: number }): Promise<void> {
+    async set(key: string, value: unknown, options?: { ex?: number; nx?: boolean }): Promise<boolean | void> {
       const store = load();
+      if (options?.nx && store.kv[key] !== undefined) {
+        return false; // Key already exists
+      }
       store.kv[key] = value;
       persist();
+      if (options?.nx) return true;
     },
 
     async del(key: string): Promise<void> {

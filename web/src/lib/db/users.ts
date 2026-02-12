@@ -1,8 +1,25 @@
 // User CRUD operations
 
 import { randomUUID } from "crypto";
+import { encrypt, decrypt } from "../crypto";
 import type { DbAdapter } from "./types";
 import { KV_KEYS, type UserRecord } from "./types";
+
+/** Encrypt tokens before storage */
+function encryptTokens(user: UserRecord): UserRecord {
+  return {
+    ...user,
+    accessToken: encrypt(user.accessToken),
+    refreshToken: encrypt(user.refreshToken),
+  };
+}
+
+/** Decrypt tokens after read, with backward compat for plaintext */
+function decryptTokens(user: UserRecord): UserRecord {
+  const accessToken = decrypt(user.accessToken) ?? user.accessToken;
+  const refreshToken = decrypt(user.refreshToken) ?? user.refreshToken;
+  return { ...user, accessToken, refreshToken };
+}
 
 export function createUserOps(db: DbAdapter) {
   return {
@@ -20,15 +37,16 @@ export function createUserOps(db: DbAdapter) {
       if (existingId) {
         const existing = await db.get<UserRecord>(KV_KEYS.user(existingId));
         if (existing) {
-          existing.name = data.name;
-          existing.avatar = data.avatar;
-          existing.accessToken = data.accessToken;
-          existing.refreshToken = data.refreshToken;
-          existing.tokenExpiry = now + data.expiresIn * 1000;
-          existing.consultable = true;
-          existing.circuitBreakerUntil = undefined;
-          await db.set(KV_KEYS.user(existingId), existing);
-          return existing;
+          const decrypted = decryptTokens(existing);
+          decrypted.name = data.name;
+          decrypted.avatar = data.avatar;
+          decrypted.accessToken = data.accessToken;
+          decrypted.refreshToken = data.refreshToken;
+          decrypted.tokenExpiry = now + data.expiresIn * 1000;
+          decrypted.consultable = true;
+          decrypted.circuitBreakerUntil = undefined;
+          await db.set(KV_KEYS.user(existingId), encryptTokens(decrypted));
+          return decrypted;
         }
       }
 
@@ -44,7 +62,7 @@ export function createUserOps(db: DbAdapter) {
         createdAt: now,
       };
 
-      await db.set(KV_KEYS.user(user.id), user);
+      await db.set(KV_KEYS.user(user.id), encryptTokens(user));
       await db.set(KV_KEYS.userBySecondme(data.secondmeId), user.id);
       await db.sadd(KV_KEYS.consultableUsers(), user.id);
       return user;
@@ -52,14 +70,14 @@ export function createUserOps(db: DbAdapter) {
 
     async getUserById(id: string): Promise<UserRecord | undefined> {
       const user = await db.get<UserRecord>(KV_KEYS.user(id));
-      return user || undefined;
+      return user ? decryptTokens(user) : undefined;
     },
 
     async getUserBySecondmeId(secondmeId: string): Promise<UserRecord | undefined> {
       const userId = await db.get<string>(KV_KEYS.userBySecondme(secondmeId));
       if (!userId) return undefined;
       const user = await db.get<UserRecord>(KV_KEYS.user(userId));
-      return user || undefined;
+      return user ? decryptTokens(user) : undefined;
     },
 
     async getConsultableUsers(excludeUserId: string): Promise<UserRecord[]> {
@@ -77,7 +95,7 @@ export function createUserOps(db: DbAdapter) {
           (!user.circuitBreakerUntil || user.circuitBreakerUntil < now) &&
           user.tokenExpiry > now
         ) {
-          users.push(user);
+          users.push(decryptTokens(user));
         }
       }
       return users;
@@ -100,10 +118,11 @@ export function createUserOps(db: DbAdapter) {
     ): Promise<void> {
       const user = await db.get<UserRecord>(KV_KEYS.user(userId));
       if (user) {
-        user.accessToken = accessToken;
-        user.refreshToken = refreshToken;
-        user.tokenExpiry = Date.now() + expiresIn * 1000;
-        await db.set(KV_KEYS.user(userId), user);
+        const updated = decryptTokens(user);
+        updated.accessToken = accessToken;
+        updated.refreshToken = refreshToken;
+        updated.tokenExpiry = Date.now() + expiresIn * 1000;
+        await db.set(KV_KEYS.user(userId), encryptTokens(updated));
       }
     },
   };

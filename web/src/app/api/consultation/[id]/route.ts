@@ -18,16 +18,15 @@ export async function GET(
     return NextResponse.json({ error: "咨询不存在" }, { status: 404 });
   }
 
-  // Only the asker can view full details
-  const isOwner = consultation.askerId === session.userId;
+  // Only the owner can access consultation details
+  if (consultation.askerId !== session.userId) {
+    return NextResponse.json({ error: "无权访问" }, { status: 403 });
+  }
 
   const responses = await getAgentResponses(id);
 
   return NextResponse.json({
-    consultation: {
-      ...consultation,
-      question: isOwner ? consultation.question : undefined,
-    },
+    consultation,
     responses: responses.map((r) => ({
       id: r.id,
       rawResponse: r.isValid ? r.rawResponse : undefined,

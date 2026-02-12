@@ -2,7 +2,7 @@
 
 export interface DbAdapter {
   get<T>(key: string): Promise<T | null>;
-  set(key: string, value: unknown, options?: { ex?: number }): Promise<void>;
+  set(key: string, value: unknown, options?: { ex?: number; nx?: boolean }): Promise<boolean | void>;
   del(key: string): Promise<void>;
   sadd(key: string, member: string): Promise<void>;
   srem(key: string, member: string): Promise<void>;
@@ -98,6 +98,15 @@ export interface StorageLatencyMetrics {
   keyPattern: string;
 }
 
+export interface FeedbackRecord {
+  id: string;
+  consultationId: string;
+  userId: string;
+  vote: "helpful" | "not_helpful";
+  comment?: string;
+  createdAt: number;
+}
+
 // KV Key schema (centralized)
 export const KV_KEYS = {
   user: (userId: string) => `user:${userId}`,
@@ -117,6 +126,9 @@ export const KV_KEYS = {
     userMetricsIndex: (userId: string) => `health:${userId}:metrics`,
     latencyMetrics: (timestamp: number) => `health:metrics:latency:${timestamp}`,
   },
+  // Feedback keys
+  feedback: (consultationId: string, userId: string) =>
+    `feedback:${consultationId}:${userId}`,
   // Consent and audit keys
   consent: {
     record: (userId: string) => `consent:${userId}`,
