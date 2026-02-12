@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { getSession } from "@/lib/session";
+import LogoutButton from "@/components/logout-button";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,11 +21,13 @@ export const metadata: Metadata = {
     "你的 AI 带着健康困惑，和其他人的 AI 交流经验，帮你减少信息差和焦虑。",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getSession();
+
   return (
     <html lang="zh-CN">
       <body
@@ -34,7 +38,12 @@ export default function RootLayout({
             <Link href="/" className="text-xl font-bold text-emerald-700">
               MedCrowd <span className="text-sm font-normal text-gray-500">众医议</span>
             </Link>
-            <div id="nav-user" />
+            {session && (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-600">{session.name}</span>
+                <LogoutButton />
+              </div>
+            )}
           </div>
         </nav>
         <main className="max-w-3xl mx-auto px-4 py-6">{children}</main>
