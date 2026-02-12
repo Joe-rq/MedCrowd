@@ -1,12 +1,29 @@
 import { getConsultation } from "@/lib/db";
+import { verifyShareSig } from "@/lib/share-token";
 import Link from "next/link";
 
 export default async function SharePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ sig?: string }>;
 }) {
   const { id } = await params;
+  const { sig } = await searchParams;
+
+  // Verify HMAC signature
+  if (!sig || !verifyShareSig(id, sig)) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-xl font-bold text-gray-900">链接无效或已过期</h2>
+        <Link href="/" className="text-emerald-600 hover:underline mt-2 inline-block">
+          了解 MedCrowd
+        </Link>
+      </div>
+    );
+  }
+
   const consultation = await getConsultation(id);
 
   if (!consultation || !consultation.summary) {
@@ -40,16 +57,29 @@ export default async function SharePage({
       {summary.consensus && summary.consensus.length > 0 && (
         <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-4">
           <h3 className="font-bold text-emerald-800 mb-3">共识观点</h3>
-          <ul className="space-y-2">
-            {summary.consensus.map((c, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className="text-emerald-600 font-bold text-sm mt-0.5">
-                  {c.agentCount}/{c.totalAgents}
-                </span>
-                <span className="text-gray-800">{c.point}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-3">
+            {summary.consensus.map((c, i) => {
+              const percent = c.totalAgents && c.totalAgents > 0
+                ? Math.round((c.agentCount / c.totalAgents) * 100)
+                : 0;
+              return (
+                <div key={i} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-gray-800 text-sm">{c.point}</p>
+                    <span className="text-xs text-emerald-600 font-medium whitespace-nowrap">
+                      {c.agentCount}/{c.totalAgents}
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 bg-emerald-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

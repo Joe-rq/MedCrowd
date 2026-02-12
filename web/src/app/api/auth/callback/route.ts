@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
       secondmeId: userInfo.userId,
       name: userInfo.name || "匿名用户",
       avatar: userInfo.avatar || "",
+      bio: userInfo.bio,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       expiresIn: tokens.expiresIn,

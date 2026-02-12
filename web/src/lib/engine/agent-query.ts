@@ -57,12 +57,13 @@ export async function queryAgent(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
 
-    const result = await Promise.race([
-      chatWithAgent(user.accessToken, question, systemPrompt),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout")), AGENT_TIMEOUT_MS)
-      ),
-    ]);
+    const result = await chatWithAgent(
+      user.accessToken,
+      question,
+      systemPrompt,
+      undefined,
+      controller.signal
+    );
 
     clearTimeout(timeout);
     return { ...result, latencyMs: Date.now() - start };

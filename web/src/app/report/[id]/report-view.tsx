@@ -46,12 +46,12 @@ const PROGRESS_MESSAGES = [
 export default function ReportView({
   consultation: initialConsultation,
   responses: initialResponses,
-  shareBaseUrl,
+  shareUrl,
   userId,
 }: {
   consultation: Consultation;
   responses: AgentResponse[];
-  shareBaseUrl: string;
+  shareUrl: string;
   userId: string;
 }) {
   const [consultation, setConsultation] = useState(initialConsultation);
@@ -168,8 +168,7 @@ export default function ReportView({
   }, [userId, consultation.id, summary]);
 
   function handleShare() {
-    const url = `${shareBaseUrl}/share/${consultation.id}`;
-    navigator.clipboard.writeText(url).then(() => {
+    navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
 
@@ -284,15 +283,28 @@ export default function ReportView({
           <h3 className="font-semibold text-gray-900 mb-3">
             共识观点
           </h3>
-          <div className="space-y-2">
-            {summary.consensus.map((c, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <span className="text-emerald-500 mt-0.5">
-                  {c.agentCount}/{c.totalAgents}
-                </span>
-                <p className="text-gray-700 text-sm">{c.point}</p>
-              </div>
-            ))}
+          <div className="space-y-3">
+            {summary.consensus.map((c, i) => {
+              const percent = c.totalAgents && c.totalAgents > 0
+                ? Math.round((c.agentCount / c.totalAgents) * 100)
+                : 0;
+              return (
+                <div key={i} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-gray-700 text-sm">{c.point}</p>
+                    <span className="text-xs text-emerald-600 font-medium whitespace-nowrap">
+                      {c.agentCount}/{c.totalAgents}
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

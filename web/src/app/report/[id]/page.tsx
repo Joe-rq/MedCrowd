@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/session";
 import { getConsultation, getAgentResponses } from "@/lib/db";
+import { buildShareUrl } from "@/lib/share-token";
 import { redirect } from "next/navigation";
 import ReportView from "./report-view";
 
@@ -33,7 +34,7 @@ export default async function ReportPage({
     <ReportView
       consultation={consultation}
       responses={responses}
-      shareBaseUrl={process.env.NEXT_PUBLIC_BASE_URL || ""}
+      shareUrl={buildShareUrl(consultation.id)}
       userId={session.userId}
     />
   );

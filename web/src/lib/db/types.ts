@@ -24,6 +24,8 @@ export interface UserRecord {
   tokenExpiry: number; // Unix timestamp ms
   consultable: boolean;
   circuitBreakerUntil?: number; // Unix timestamp ms - temporary disable
+  bio?: string;    // From SecondMe user info
+  tags?: string[]; // Manual tags for smart matching
   createdAt: number;
 }
 

@@ -46,21 +46,36 @@ export function validateResponse(text: string): ValidationResult {
   return { isValid: true, isNoExperience: false };
 }
 
-// Simple dedup: check if response is >90% similar to any existing one
-export function isDuplicate(newText: string, existingTexts: string[]): boolean {
-  const normalized = newText.trim().replace(/\s+/g, "");
-  for (const existing of existingTexts) {
-    const existingNorm = existing.trim().replace(/\s+/g, "");
-    const shorter = Math.min(normalized.length, existingNorm.length);
-    const longer = Math.max(normalized.length, existingNorm.length);
-    if (shorter === 0) continue;
+/** Generate character bigrams from text */
+function bigrams(text: string): Set<string> {
+  const normalized = text.replace(/\s+/g, "");
+  const set = new Set<string>();
+  for (let i = 0; i < normalized.length - 1; i++) {
+    set.add(normalized.slice(i, i + 2));
+  }
+  return set;
+}
 
-    // Simple character overlap check
-    let matches = 0;
-    for (let i = 0; i < shorter; i++) {
-      if (normalized[i] === existingNorm[i]) matches++;
+/** Jaccard similarity between two bigram sets */
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 1;
+  let intersection = 0;
+  for (const gram of a) {
+    if (b.has(gram)) intersection++;
+  }
+  return intersection / (a.size + b.size - intersection);
+}
+
+const DEDUP_THRESHOLD = 0.7;
+
+// Bigram Jaccard dedup: catches reordered text, added filler words, etc.
+export function isDuplicate(newText: string, existingTexts: string[]): boolean {
+  const newBigrams = bigrams(newText.trim());
+  for (const existing of existingTexts) {
+    const existingBigrams = bigrams(existing.trim());
+    if (jaccardSimilarity(newBigrams, existingBigrams) >= DEDUP_THRESHOLD) {
+      return true;
     }
-    if (matches / longer > 0.9) return true;
   }
   return false;
 }

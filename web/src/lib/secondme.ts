@@ -124,7 +124,8 @@ export async function chatWithAgent(
   accessToken: string,
   message: string,
   systemPrompt: string,
-  sessionId?: string
+  sessionId?: string,
+  signal?: AbortSignal
 ): Promise<{ text: string; sessionId: string }> {
   if (DEMO_MODE) {
     await new Promise((r) => setTimeout(r, 500 + Math.random() * 1000));
@@ -150,6 +151,7 @@ export async function chatWithAgent(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal,
   });
 
   if (!res.ok) {

@@ -10,6 +10,7 @@ import {
   getAgentResponses,
   pushEvent,
   type AgentResponseRecord,
+  type UserRecord,
 } from "../db";
 import { validateResponse, isDuplicate } from "../validator";
 import { buildSummary, type ReportSummary } from "../summary";
@@ -18,6 +19,38 @@ import { queryAgent } from "./agent-query";
 import { runReactionRound } from "./reaction";
 import { SYSTEM_PROMPT, MAX_CONCURRENT, AGENT_TIMEOUT_MS, REACTION_ROUND_ENABLED } from "./prompts";
 import { ConsultationEmitter } from "./emitter";
+
+/** Rank agents by relevance to the question using tags (primary) or bio bigrams (fallback). */
+function rankAgentsByRelevance(agents: UserRecord[], question: string): UserRecord[] {
+  function scoreTags(tags: string[] | undefined): number {
+    if (!tags || tags.length === 0) return 0;
+    return tags.reduce((n, tag) => n + (question.includes(tag) ? 1 : 0), 0);
+  }
+
+  function bigramSet(text: string): Set<string> {
+    const s = new Set<string>();
+    for (let i = 0; i < text.length - 1; i++) s.add(text.slice(i, i + 2));
+    return s;
+  }
+
+  function scoreBio(bio: string | undefined): number {
+    if (!bio) return 0;
+    const qBigrams = bigramSet(question);
+    const bBigrams = bigramSet(bio);
+    let overlap = 0;
+    for (const b of bBigrams) if (qBigrams.has(b)) overlap++;
+    return overlap;
+  }
+
+  const scored = agents.map((a) => {
+    const tagScore = scoreTags(a.tags);
+    const bioScore = tagScore > 0 ? 0 : scoreBio(a.bio);
+    return { agent: a, score: tagScore * 10 + bioScore };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.map((s) => s.agent);
+}
 
 export interface ConsultationResult {
   consultationId: string;
@@ -53,10 +86,40 @@ export async function runConsultation(
 
   // Step 1: Triage
   const triage = await triageHealthQuestion(question);
+
+  // Emergency triage → abort consultation, return safety message directly
+  if (triage.intent === "emergency") {
+    const emergencySummary: ReportSummary = {
+      consensus: [],
+      divergence: [],
+      preparation: [],
+      needDoctorConfirm: [],
+      riskWarning:
+        "⚠️ 检测到可能的紧急医疗状况。请立即拨打 120 或前往最近的医院急诊科！本平台为经验交流平台，无法处理紧急医疗情况。",
+      agentResponses: [],
+      noExperienceCount: 0,
+      totalAgentsQueried: 0,
+    };
+    await updateConsultation(consultation.id, {
+      status: "DONE",
+      summary: emergencySummary as unknown as Record<string, unknown>,
+      triage: triage as unknown as Record<string, unknown>,
+    });
+    em.emit({ type: "consultation:done", status: "DONE" });
+    return {
+      consultationId: consultation.id,
+      status: "DONE",
+      summary: emergencySummary,
+      responses: [],
+      triage,
+    };
+  }
+
   const adjustedPrompt = getAdjustedSystemPrompt(SYSTEM_PROMPT + question, triage);
 
   const availableAgents = await getConsultableUsers(askerId);
-  const agentsToQuery = availableAgents.slice(0, MAX_CONCURRENT);
+  const rankedAgents = rankAgentsByRelevance(availableAgents, question);
+  const agentsToQuery = rankedAgents.slice(0, MAX_CONCURRENT);
 
   await updateConsultation(consultation.id, {
     agentCount: agentsToQuery.length,
@@ -86,7 +149,7 @@ export async function runConsultation(
   const allResponses = await getAgentResponses(consultation.id);
   const validInitial = allResponses.filter((r) => r.isValid && r.round === "initial");
 
-  if (REACTION_ROUND_ENABLED && validInitial.length >= 2 && validCount > 0) {
+  if (REACTION_ROUND_ENABLED && validInitial.length >= 1 && validCount > 0) {
     await runReactionRound(consultation.id, question, validInitial, agentsToQuery, em);
   }
 

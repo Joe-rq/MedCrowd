@@ -30,6 +30,7 @@ export function createUserOps(db: DbAdapter) {
       accessToken: string;
       refreshToken: string;
       expiresIn: number;
+      bio?: string;
     }): Promise<UserRecord> {
       const now = Date.now();
       const existingId = await db.get<string>(KV_KEYS.userBySecondme(data.secondmeId));
@@ -40,6 +41,7 @@ export function createUserOps(db: DbAdapter) {
           const decrypted = decryptTokens(existing);
           decrypted.name = data.name;
           decrypted.avatar = data.avatar;
+          decrypted.bio = data.bio ?? decrypted.bio;
           decrypted.accessToken = data.accessToken;
           decrypted.refreshToken = data.refreshToken;
           decrypted.tokenExpiry = now + data.expiresIn * 1000;
@@ -55,6 +57,7 @@ export function createUserOps(db: DbAdapter) {
         secondmeId: data.secondmeId,
         name: data.name,
         avatar: data.avatar,
+        bio: data.bio,
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
         tokenExpiry: now + data.expiresIn * 1000,
