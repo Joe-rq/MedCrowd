@@ -40,6 +40,8 @@ export default async function RootLayout({
             </Link>
             {session && (
               <div className="flex items-center gap-3">
+                <Link href="/ask" className="text-sm text-gray-600 hover:text-emerald-700">提问</Link>
+                <Link href="/health" className="text-sm text-gray-600 hover:text-emerald-700">健康数据</Link>
                 <span className="text-sm text-gray-600">{session.name}</span>
                 <LogoutButton />
               </div>
